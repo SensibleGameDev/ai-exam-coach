@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy"
   content="default-src 'self';
     img-src 'self' data:;
@@ -84,8 +84,8 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 
 /* ── WORKSPACE: flexbox instead of grid ── */
 .workspace{display:flex;flex:1;min-height:0;overflow:hidden}
-.chat-column{display:flex;flex-direction:column;flex:1;min-width:0;background:var(--bg)}
-.chat-area{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+.chat-column{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;overflow:hidden;background:var(--bg)}
+.chat-area{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;overscroll-behavior:contain}
 .chat-area::-webkit-scrollbar{width:5px}
 .chat-area::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:3px}
 
@@ -94,7 +94,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .practice-header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-shrink:0}
 .practice-title{font-size:.88rem;font-weight:700}
 .practice-subtitle{font-size:.72rem;color:var(--text-secondary)}
-.practice-body{padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;flex:1;-webkit-overflow-scrolling:touch}
+.practice-body{padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .practice-empty{border:1px dashed var(--border);border-radius:var(--radius);padding:16px;color:var(--text-secondary);font-size:.82rem;line-height:1.6;background:var(--bg-input)}
 .practice-chip{font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;padding:3px 8px;border-radius:20px;background:var(--primary-light);color:var(--primary);font-weight:600}
 
@@ -270,6 +270,10 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
   .input-hint{display:none}
   .header-btn.practice-toggle{display:none}
   .main-header .mode-desc{display:none}
+  .input-area{padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  .mobile-tabs{padding-bottom:env(safe-area-inset-bottom,0px)}
+  .quiz-option{padding:12px 14px}
+  .quiz-btn{padding:12px 20px}
 }
 @media(max-width:400px){
   .feature-grid{grid-template-columns:1fr}
@@ -462,7 +466,7 @@ function renderPracticePane(){const session=getCurrentSession();const body=docum
 const msg=session.messages[idx];const chip=document.createElement('div');chip.className='practice-chip';chip.textContent=msg.type==='quiz'?'Quiz':msg.type==='coding'?'Coding':'Flashcards';body.appendChild(chip);
 if(msg.type==='quiz'){
   // progress bar
-  const done=msg.data.questions.filter(q=>q.submitted).length;const total=msg.data.questions.length;const pbar=document.createElement('div');pbar.className='quiz-progress';pbar.innerHTML=`<div class="quiz-progress-fill" style="width:${Math.round(done/total*100)}%"></div>`;body.appendChild(pbar);
+  const done=msg.data.questions.filter(q=>q.submitted).length;const total=msg.data.questions.length;const pbar=document.createElement('div');pbar.className='quiz-progress';pbar.id=`quizProgress_${idx}`;pbar.innerHTML=`<div class="quiz-progress-fill" style="width:${Math.round(done/total*100)}%"></div>`;body.appendChild(pbar);
   renderQuizCards(body,msg.data,idx);const scoreMsg=session.messages.slice(idx+1).find(m=>m.type==='score');if(scoreMsg?.data)renderScoreCard(body,scoreMsg.data)
 }else if(msg.type==='coding'){renderProblemCards(body,msg.data,idx,false)}else if(msg.type==='flashcards'){renderFlashcards(body,msg.data,idx)}}
 
@@ -475,8 +479,10 @@ function scrollToBottom(){const area=document.getElementById('chatArea');request
 
 // ── QUIZ RENDERING ──
 function renderQuizCards(container,quizData,msgIdx){const{questions,type}=quizData;const isMulti=type==='multi';questions.forEach((q,qIdx)=>{const card=document.createElement('div');card.className='quiz-card';card.id=`quiz_${msgIdx}_${qIdx}`;const badge=isMulti?'<span class="badge badge-multi">Multi</span>':'<span class="badge badge-single">Single</span>';const instruction=isMulti?t('selectAll'):t('selectOne');let optionsHtml=q.options.map((opt,oIdx)=>{const cls=['quiz-option'];if(isMulti)cls.push('multi');const userAns=q.userAnswers||[];const checked=userAns.includes(oIdx);const submitted=!!q.submitted;const isCorrectOpt=isMulti?(q.correctIndices||[]).includes(oIdx):q.correctIndex===oIdx;if(submitted){cls.push('disabled');if(isCorrectOpt)cls.push('correct');else if(checked)cls.push('incorrect')}else if(checked)cls.push('selected');let marker='';if(submitted)marker=isCorrectOpt?'✓':(checked?'✗':'');else marker=checked?(isMulti?'✓':'●'):'';return`<div class="${cls.join(' ')}" onclick="toggleOpt(${msgIdx},${qIdx},${oIdx},${isMulti})"><span class="marker">${marker}</span><span>${escHtml(opt)}</span></div>`}).join('');let explanationHtml='';if(q.submitted&&q.explanation){const rc=q.isCorrect?'correct-expl':(q.isPartial?'partial-expl':'incorrect-expl');const rt=q.isCorrect?t('correct'):(q.isPartial?t('partial'):t('incorrect'));explanationHtml=`<div class="quiz-explanation ${rc}"><strong>${rt}</strong> ${escHtml(q.explanation)}</div>`}let actionsHtml='';if(!q.submitted)actionsHtml=`<div class="quiz-actions"><button class="quiz-btn quiz-btn-primary" onclick="submitOpt(${msgIdx},${qIdx},${isMulti})">${t('submitAnswer')}</button></div>`;card.innerHTML=`<div class="quiz-card-header"><span style="font-size:.78rem;color:var(--text-secondary)">Q${qIdx+1}/${questions.length}</span>${badge}</div><div class="quiz-question">${escHtml(q.question)}</div><div style="font-size:.73rem;color:var(--text-secondary);margin-bottom:8px">${instruction}</div>${optionsHtml}${explanationHtml}${actionsHtml}`;container.appendChild(card)})}
-function toggleOpt(msgIdx,qIdx,oIdx,isMulti){const session=getCurrentSession();if(!session)return;const q=session.messages[msgIdx]?.data?.questions?.[qIdx];if(!q||q.submitted)return;if(!q.userAnswers)q.userAnswers=[];if(isMulti){const i=q.userAnswers.indexOf(oIdx);if(i>=0)q.userAnswers.splice(i,1);else q.userAnswers.push(oIdx)}else{q.userAnswers=[oIdx]}saveState();renderPracticePane()}
-function submitOpt(msgIdx,qIdx,isMulti){const session=getCurrentSession();if(!session)return;const msg=session.messages[msgIdx];const q=msg?.data?.questions?.[qIdx];if(!q||!q.userAnswers||q.userAnswers.length===0){showToast(t('selectFirst'),'info');return}q.submitted=true;if(isMulti){const correct=(q.correctIndices||[]).slice().sort();const user=q.userAnswers.slice().sort();q.isCorrect=JSON.stringify(user)===JSON.stringify(correct);q.isPartial=!q.isCorrect&&user.some(u=>correct.includes(u))}else{q.isCorrect=q.userAnswers[0]===q.correctIndex;q.isPartial=false}state.stats.quizzes++;if(q.isCorrect)state.stats.correct++;else state.stats.wrong++;updateStatsUI();const allDone=msg.data.questions.every(qq=>qq.submitted);if(allDone){const cc=msg.data.questions.filter(qq=>qq.isCorrect).length;const tot=msg.data.questions.length;addMsg('bot',`🏆 Quiz: ${cc}/${tot}.`,'score',{correct:cc,total:tot,percentage:Math.round(cc/tot*100)})}saveState();renderChat();renderPracticePane()}
+function toggleOpt(msgIdx,qIdx,oIdx,isMulti){const session=getCurrentSession();if(!session)return;const q=session.messages[msgIdx]?.data?.questions?.[qIdx];if(!q||q.submitted)return;if(!q.userAnswers)q.userAnswers=[];if(isMulti){const i=q.userAnswers.indexOf(oIdx);if(i>=0)q.userAnswers.splice(i,1);else q.userAnswers.push(oIdx)}else{q.userAnswers=[oIdx]}saveState();rerenderQuizCard(msgIdx,qIdx)}
+function submitOpt(msgIdx,qIdx,isMulti){const session=getCurrentSession();if(!session)return;const msg=session.messages[msgIdx];const q=msg?.data?.questions?.[qIdx];if(!q||!q.userAnswers||q.userAnswers.length===0){showToast(t('selectFirst'),'info');return}q.submitted=true;if(isMulti){const correct=(q.correctIndices||[]).slice().sort();const user=q.userAnswers.slice().sort();q.isCorrect=JSON.stringify(user)===JSON.stringify(correct);q.isPartial=!q.isCorrect&&user.some(u=>correct.includes(u))}else{q.isCorrect=q.userAnswers[0]===q.correctIndex;q.isPartial=false}state.stats.quizzes++;if(q.isCorrect)state.stats.correct++;else state.stats.wrong++;updateStatsUI();rerenderQuizCard(msgIdx,qIdx);updateQuizProgress(msgIdx);const allDone=msg.data.questions.every(qq=>qq.submitted);if(allDone){const cc=msg.data.questions.filter(qq=>qq.isCorrect).length;const tot=msg.data.questions.length;const scoreData={correct:cc,total:tot,percentage:Math.round(cc/tot*100)};addMsg('bot',`🏆 Quiz: ${cc}/${tot}.`,'score',scoreData);appendMsgEl('bot',`🏆 Quiz: ${cc}/${tot}.`);const body=document.getElementById('practiceBody');if(body)renderScoreCard(body,scoreData)}saveState();renderSessionList()}
+function rerenderQuizCard(msgIdx,qIdx){const session=getCurrentSession();if(!session)return;const msg=session.messages[msgIdx];if(!msg||msg.type!=='quiz')return;const cardId=`quiz_${msgIdx}_${qIdx}`;const oldCard=document.getElementById(cardId);if(!oldCard)return;const q=msg.data.questions[qIdx];const isMulti=msg.data.type==='multi';const total=msg.data.questions.length;const badge=isMulti?'<span class="badge badge-multi">Multi</span>':'<span class="badge badge-single">Single</span>';const instruction=isMulti?t('selectAll'):t('selectOne');let optionsHtml=q.options.map((opt,oIdx)=>{const cls=['quiz-option'];if(isMulti)cls.push('multi');const userAns=q.userAnswers||[];const checked=userAns.includes(oIdx);const submitted=!!q.submitted;const isCorrectOpt=isMulti?(q.correctIndices||[]).includes(oIdx):q.correctIndex===oIdx;if(submitted){cls.push('disabled');if(isCorrectOpt)cls.push('correct');else if(checked)cls.push('incorrect')}else if(checked)cls.push('selected');let marker='';if(submitted)marker=isCorrectOpt?'✓':(checked?'✗':'');else marker=checked?(isMulti?'✓':'●'):'';return`<div class="${cls.join(' ')}" onclick="toggleOpt(${msgIdx},${qIdx},${oIdx},${isMulti})"><span class="marker">${marker}</span><span>${escHtml(opt)}</span></div>`}).join('');let explanationHtml='';if(q.submitted&&q.explanation){const rc=q.isCorrect?'correct-expl':(q.isPartial?'partial-expl':'incorrect-expl');const rt=q.isCorrect?t('correct'):(q.isPartial?t('partial'):t('incorrect'));explanationHtml=`<div class="quiz-explanation ${rc}"><strong>${rt}</strong> ${escHtml(q.explanation)}</div>`}let actionsHtml='';if(!q.submitted)actionsHtml=`<div class="quiz-actions"><button class="quiz-btn quiz-btn-primary" onclick="submitOpt(${msgIdx},${qIdx},${isMulti})">${t('submitAnswer')}</button></div>`;oldCard.innerHTML=`<div class="quiz-card-header"><span style="font-size:.78rem;color:var(--text-secondary)">Q${qIdx+1}/${total}</span>${badge}</div><div class="quiz-question">${escHtml(q.question)}</div><div style="font-size:.73rem;color:var(--text-secondary);margin-bottom:8px">${instruction}</div>${optionsHtml}${explanationHtml}${actionsHtml}`}
+function updateQuizProgress(msgIdx){const session=getCurrentSession();if(!session)return;const msg=session.messages[msgIdx];if(!msg||msg.type!=='quiz')return;const done=msg.data.questions.filter(q=>q.submitted).length;const total=msg.data.questions.length;const pbar=document.getElementById(`quizProgress_${msgIdx}`);if(pbar){const fill=pbar.querySelector('.quiz-progress-fill');if(fill)fill.style.width=`${Math.round(done/total*100)}%`}}
 
 // ── SCORE ──
 function renderScoreCard(container,data){const card=document.createElement('div');card.className='score-card';let emoji,comment;if(data.percentage>=100){emoji='🎉';comment=t('excellent')}else if(data.percentage>=75){emoji='🌟';comment=t('great')}else if(data.percentage>=50){emoji='👍';comment=t('good')}else{emoji='📚';comment=t('keepStudying')}card.innerHTML=`<h3>${emoji} ${t('quizComplete')}</h3><div class="score-big">${data.correct}/${data.total}</div><div style="font-size:.88rem;opacity:.9">${comment}</div><div class="score-details"><div class="score-detail"><strong>${data.percentage}%</strong><span>${t('accuracy')}</span></div><div class="score-detail"><strong>${data.correct}</strong><span>${t('correctLabel')}</span></div><div class="score-detail"><strong>${data.total-data.correct}</strong><span>${t('wrongLabel')}</span></div></div>`;container.appendChild(card)}
@@ -565,4 +571,3 @@ document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
 </html>
-
